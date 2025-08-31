@@ -89,11 +89,6 @@ fix: correct localization strings
 refactor: extract upload logic to service
 refactor: optimize audio processing
 refactor: improve component structure
-refactor: extract file parser logic
-refactor: optimize audio conversion
-refactor: improve player performance
-refactor: extract theme management
-refactor: optimize localization
 ```
 
 ### Тестирование
@@ -101,11 +96,6 @@ refactor: optimize localization
 test: add upload component tests
 test: cover audio conversion scenarios
 test: validate player functionality
-test: add gp4/gp5 parser tests
-test: cover audio player scenarios
-test: validate theme switching
-test: add localization tests
-test: cover offline functionality
 ```
 
 ### Обслуживание
@@ -113,7 +103,4 @@ test: cover offline functionality
 chore: update react dependencies
 chore: update project documentation
 chore: release version 1.2.0
-chore: update react-intl dependencies
-chore: update material-ui dependencies
-chore: add audio conversion library
 ```
