@@ -1,0 +1,94 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+# Правила генерации названий коммитов
+
+## Общий формат
+Названия коммитов генерируются по шаблону: `[type]: [description]`
+
+## Типы коммита (type)
+
+### chore
+Изменения, не связанные с рефакторингом кода:
+- обновление зависимостей
+- изменение файлов конфигураций пакетов
+- обновление файлов *.md, *.mdc
+- выпуск новой версии приложения (релиз)
+
+### feat
+Добавление новой функциональности
+
+### fix
+Исправление ошибок
+
+### refactor
+Улучшение кодовой базы без изменения поведения приложения
+
+### test
+Написание / изменение модульных или интеграционных тестов
+
+## Описание (description)
+
+- Описание содержит краткую информацию об изменениях, входящих в коммит
+- Описание должно быть ёмким (не более 100 символов)
+- Не должно содержать названий файлов, классов, функций и типов
+
+## Типовые названия коммитов
+
+Существует несколько типовых описаний коммитов, которые можно использовать вместо генерации названия коммита:
+
+### chore
+- `chore: update dependencies` - обновление зависимостей в проекте
+- `chore: update readme` - обновление readme-файлов
+
+### test
+- `test: add module test` - добавление модульного теста
+- `test: add module tests` - добавление модульных тестов
+- `test: update module test` - изменение модульного теста
+- `test: update module tests` - изменение модульных тестов
+
+### refactor
+- `refactor: rename variable` - переименование переменной
+- `refactor: rename function` - переименование функции
+- `refactor: rename class` - переименование класса
+- `refactor: update types` - изменение типов
+
+## Примеры использования
+
+### Добавление новой функциональности
+```
+feat: add file upload component
+feat: implement audio conversion service
+feat: add player controls
+```
+
+### Исправление ошибок
+```
+fix: resolve file upload validation
+fix: correct audio format conversion
+fix: handle player state properly
+```
+
+### Рефакторинг
+```
+refactor: extract upload logic to service
+refactor: optimize audio processing
+refactor: improve component structure
+```
+
+### Тестирование
+```
+test: add upload component tests
+test: cover audio conversion scenarios
+test: validate player functionality
+```
+
+### Обслуживание
+```
+chore: update react dependencies
+chore: update project documentation
+chore: release version 1.2.0
+```
