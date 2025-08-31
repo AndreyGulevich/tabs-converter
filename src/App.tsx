@@ -4,7 +4,6 @@ import { CssBaseline, Box } from '@mui/material';
 import { IntlProvider } from 'react-intl';
 import { Header } from './widgets/Header';
 import { FileUpload } from './features/FileUpload';
-import { AudioPlayer } from './features/AudioPlayer';
 import { ThemeToggle } from './features/ThemeToggle';
 import { LanguageToggle } from './features/LanguageToggle';
 import { messages } from './shared/config/messages';
@@ -56,7 +55,6 @@ function App() {
           </Header>
           <Box sx={{ p: 3 }}>
             <FileUpload />
-            <AudioPlayer />
           </Box>
         </Box>
       </ThemeProvider>
