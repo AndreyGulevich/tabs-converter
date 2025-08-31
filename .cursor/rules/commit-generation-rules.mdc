@@ -43,6 +43,7 @@ alwaysApply: false
 ### chore
 - `chore: update dependencies` - обновление зависимостей в проекте
 - `chore: update readme` - обновление readme-файлов
+- `chore: update cursor rules` - обновление правил курсора
 
 ### test
 - `test: add module test` - добавление модульного теста
