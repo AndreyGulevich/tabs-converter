@@ -1,0 +1,259 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+> _Widget — это "макро-фича", которая собирает другие фичи, но внутри следует тем же слоям (Model-Store-Composer-UI)._
+
+## Архитектура
+
+Архитектура полностью наследует архитектуру [[Feature]], в ней отсутствует `Presenter`, и имеет дополнительный слой `Composer` для композиции фич.
+
+### Разрешенный способ взаимодействия
+
+Только через:
+
+1. **Main-компоненты** фич
+2. **Пропсы** (данные + колбэки)
+3. **Рендер-пропсы**
+4. **Composer** (Компановщик фич)
+
+---
+
+### Структура директорий
+
+```bash
+src/
+│
+├── widgets/                  # Родительские виджеты
+│   └── VideoDevices/         # Пример виджета
+│       ├── composer/         # Слой Компановщика
+│       │   ├── Composer.tsx  # Класс Компановщика
+│       │   ├── types.ts      # Типы композиции
+│       │   └── index.ts      # Public API (Реэкспорт)
+│       │
+│       │── useComposer.ts    # Хук для использования Компановщика
+│       │
+│       ├── ui/               # Обертка для композиции
+│       │   ├── View.tsx      # Рендер фич через пропсы
+│       │   └── ...
+│       │
+│       ├── store/            # Только локальный Store виджета
+│       │   ├── @Model/       # Модель виджета (общие данные)
+│       │   ├── actions/      # Действия, влияющие на несколько фич
+│       │   └── ...
+│       │
+│       ├── Main.tsx          # Точка входа
+│       └── ...
+│
+├── features/                 # Дочерние фичи
+│   ├── LocalDevices/         # Пример фичи
+│   │   ├── Main.tsx          # Единственный публичный экспорт
+│   │   ├── store/            # Полностью изолированный Store
+│   │   ├── ui/               # Внутренний UI
+│   │   └── ...
+│   │
+│   └── RemoteDevices/        # Другая фича
+│       ├── Main.tsx
+│       └── ...
+│
+├── shared/                   # Общие ресурсы
+│   ├── composer/             # Базовые классы для Компановщика
+│   │   ├── BaseWidgetComposer.ts
+│   │   └── ...
+│   └── ...
+```
+
+---
+
+### Ключевые отличия Widgets от Features
+
+| **Критерий**    | **Widget**                   | **Feature**                                 |
+| --------------- | ---------------------------- | ------------------------------------------- |
+| **Зависимости** | Может импортировать features | Не может импортировать ничего, кроме shared |
+| **Store**       | Координирует дочерние фичи   | Управляет только своей логикой              |
+| **Модель**      | Содержит общие данные        | Содержит специфичные данные                 |
+| **Presenter**   | Отсутствует                  | Адаптирует store к view                     |
+| **Composer**    | Управляет композицией фич    | Отсутствует                                 |
+| **Рендер**      | Композиция фич + общий UI    | Только свой UI                              |
+
+---
+
+### Реализация Widget (на примере VideoDevices)
+
+#### 1. `widgets/VideoDevices/Main.tsx`
+
+_Только композиция через Composer:_
+
+```tsx
+import { View } from './ui';
+import { useComposer } from './useComposer';
+
+export const VideoDevicesWidget = () => {
+  const { composition } = useComposer();
+
+  return <View LocalDevicesComponent={composition.LocalDevices} RemoteDevicesComponent={composition.RemoteDevices} />;
+};
+```
+
+#### 2. `widgets/VideoDevices/composer/Composer.tsx`
+
+_Композиция и координация фич:_
+
+```tsx
+import { BaseWidgetComposer } from '@/shared/composer';
+
+export class VideoDevicesComposer extends BaseWidgetComposer<IStore, TFeatures> {
+  public getComposition() {
+    return {
+      LocalDevices: this.composeLocalDevices(),
+      RemoteDevices: this.composeRemoteDevices(),
+    };
+  }
+
+  private composeLocalDevices() {
+    const { Component } = this.features.localDevices;
+    const baseProps = {
+      getDefaultId: this.store.state.getDefaultId,
+      setDefaultId: this.store.state.setDefaultId,
+    };
+
+    return this.createFeatureWrapper(Component, baseProps);
+  }
+}
+```
+
+#### 3. `widgets/VideoDevices/ui/View.tsx`
+
+_Рендер-пропсы без логики:_
+
+```tsx
+export type TProps = {
+  LocalDevicesComponent: React.ComponentType;
+  RemoteDevicesComponent: React.ComponentType;
+};
+
+export const View = ({ LocalDevicesComponent, RemoteDevicesComponent }: TProps) => {
+  return (
+    <div>
+      <LocalDevicesComponent />
+      <RemoteDevicesComponent />
+    </div>
+  );
+};
+```
+
+#### 4. `features/LocalDevices/Main.tsx`
+
+_Изолированная точка входа:_
+
+```tsx
+import { useLocalDevicesStore } from './store';
+import { LocalDevicesView } from './ui';
+
+export const LocalDevices: React.FC<{
+  getDefaultId: () => string;
+  onChangeDefaultId: (id: string) => void;
+}> = (props) => {
+  const store = useLocalDevicesStore(props);
+
+  return <LocalDevicesView store={store} />;
+};
+```
+
+---
+
+### Как фичи общаются с виджетом
+
+1. **Данные вниз** → Через Composer и пропсы
+
+```tsx
+// В Composer
+private composeLocalDevices() {
+  return this.createFeatureWrapper(Component, {
+    getDefaultId: this.store.state.getDefaultId
+  });
+}
+```
+
+2. **События вверх** → Через колбэки, определенные в Composer
+
+```tsx
+// В Composer
+private composeLocalDevices() {
+  return this.createFeatureWrapper(Component, {
+    onChangeDefaultId: this.store.state.setDefaultId
+  });
+}
+```
+
+---
+
+### Преимущества
+
+- **Полная изоляция** фич — можно менять их внутренности без последствий
+- **Ясные контракты** — все взаимодействия определены в Composer
+- **Легкая тестируемость** — фичи тестируются с моковыми пропсами
+- **Централизованная композиция** — вся логика сборки в одном месте
+- **Типобезопасность** — строгая типизация всех взаимодействий
+
+---
+
+### Правила для Widgets
+
+1. **Слои как в Feature + Composer (Вместо Presenter)**  
+   У каждого виджета есть свои Model-Store-Composer-UI (где Store координирует, а Composer собирает фичи).
+2. **Минимальная логика**  
+   Если виджет только собирает фичи, его Model/Store могут быть пустыми.
+3. **Инъекция зависимостей**  
+   Дочерние фичи получают данные только через Composer.
+4. **Единая точка композиции**  
+   Вся логика сборки фич должна быть в Composer.
+
+---
+
+### ⚠️ Ограничения
+
+- **Циклические зависимости**
+  Если `FeatureA` и `FeatureB` должны общаться, их общая логика должна быть вынесена в родительский Widget или shared.
+- **Переусложнение**
+  Для простых связей (например, кнопка + модалка) достаточно пропсов — не нужно создавать виджет.
+- **Прямое взаимодействие**
+  Фичи не должны напрямую взаимодействовать друг с другом, вся коммуникация через Composer.
+
+## Антипаттерны
+
+### ❌ Прямое взаимодействие фич
+
+```ts
+// Плохо: Фичи взаимодействуют напрямую
+class LocalDevices {
+  constructor(private remoteDevices: RemoteDevices) {}
+}
+
+// Хорошо: Взаимодействие через Composer
+class DevicesComposer {
+  private composeLocalDevices() {
+    return this.createFeatureWrapper(LocalDevices, {
+      onDeviceSelect: this.store.actions.setSelectedDevice,
+    });
+  }
+}
+```
+
+### ❌ Избыточная композиция
+
+```ts
+// Плохо: Widget для простой связи
+class SimpleWidget {
+  private composeButton() {
+    return this.createFeatureWrapper(Button, {
+      onClick: () => this.store.actions.showModal(),
+    });
+  }
+}
+
+// Хорошо: Использовать пропсы
+<Button onClick={() => showModal()} />;
+```

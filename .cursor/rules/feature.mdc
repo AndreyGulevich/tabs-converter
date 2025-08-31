@@ -1,0 +1,287 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# feature
+
+## Архитектурные слои
+
+- **`Model` (Entity)** — Структура данных. Содержит данные и критические бизнес-правила. Инкапсулирует наиболее общие и высокоуровневые правила.
+  Отвечает за:
+  1. **Данные**: хранение и управление данными.
+  2. **Бизнес-логику**: выполнение операций, связанных с данными.
+- **`Store`** - Интерактор, координатор — реализация сценария взаимодействия пользователя с системой. Координации бизнес-логики. Инкапсулирует `use cases`, управляет состоянием и действиями. Организует поток данных в сущности и из них с помощью _`StoreReactions`_ и _`actions`_.
+  Отвечает за:
+  1. **Бизнес-логика**:
+  - Применение бизнес-правил.
+  2. **Координация**:
+  - Взаимодействие с сущностями (**`Model`**) для работы с данными.
+  - Использование **`Api`** (**`Repository`**) для доступа к данным (например, база данных, `Api`).
+- **`Presenter`** —  Адаптер `store` к `View`. Отвечает за подготовку данных для отображения на `UI` и за обработку пользовательских действий.
+  1. Получает данные от **`Store`** .
+  2. Преобразует эти данные в формат, удобный для отображения на `UI`.
+  3. Передает данные во **`View`**.
+  4. Обрабатывает пользовательские действия (например, нажатие кнопки) и передает их в **`Store`**.
+     > **`Presenter`** не знает, как данные отображаются на экране (это задача **`View`**), и не содержит бизнес-логики (это задача **`Store`**).
+- **`View`** — Логика отображения.
+- **`Api`** — это сервисный слой, который отвечает за работу с внешним миром.
+  - **`ServerApi` (Repository)** — это слой, который отвечает за работу с данными сервера (например, загрузка из `REST-Api` или базы данных). Инкапсуляция запросов к серверу.
+  - **`CoreApi` (Repository)** — это слой, который отвечает за работу с глобальным состоянием приложения (например, показ нотификаций). Инкапсуляция использования глобального состояния приложения.
+
+## Основные правила зависимостей
+
+1. **`Model` не зависит не от чего**.
+2. **`Store` (Interactor/Use Case) зависит только от `Model`**, но не наоборот.
+3. **Внешние слои (`Api`, `UI`) зависят от `Store`**.
+4. **`Presenter` не зависит от внешних слоев (`Api`, `UI`, базы данных).** **`Presenter`** работает только с **`Store`** и **`View`**.
+5. **`Api` зависит от `Model` (например, `DTO`)**, но не наоборот.
+
+```mermaid
+classDiagram-v2
+
+note for Model "Содержит данные и критические бизнес-правила. Инкапсулирует наиболее общие и высокоуровневые правила"
+note for EntityReactions "Дополняют бизнес-правила. Обрабатывает реакции на изменения данных"
+note for stateMachine "Моделирует конечный автомат. Управляет переходами состояний"
+namespace entity {
+    class TInstanceModel{
+        <<interface>>
+    }
+    class Model {
+        +types: Object
+        +state: Object
+        +views: Object
+        +actions: Object
+        ~reactions(instance: TInstanceModel)
+    }
+    class EntityReactions {
+        ~instance: TInstanceModel
+        +dispose()
+    }
+    class stateMachine {
+        +transition()
+        +getState()
+    }
+}
+
+TInstanceModel <|-- Model : implements
+Model ..> EntityReactions : uses
+Model ..> stateMachine : uses
+
+
+note for StoreFacade "Фасад всего слоя. Интерактор, координатор"
+note for StoreReactions "Синхронизация с сервером и внешними источниками данных"
+note for StoreActions "Действия по работе с сервером. Use cases"
+namespace store {
+    class IStore{
+        <<interface>>
+        +state: Record~functions~
+        +actions: Record~functions~
+        +destroy()
+    }
+    class StoreFacade {
+        ~initialData: Object
+        ~parameters: Object
+        ~serverApi: IServerApi
+        +state: Record~functions~
+        +actions: Record~functions~
+        +destroy()
+    }
+    class StoreReactions {
+        ~instance: TInstanceModel
+        ~serverApi: IServerApi
+        ~coreApi: ICoreApi
+        +dispose()
+    }
+    class StoreActions {
+        ~instance: TInstanceModel
+        ~serverApi: IServerApi
+        ~coreApi: ICoreApi
+    }
+    class IServerApi{
+        <<interface>>
+    }
+    class ICoreApi{
+        <<interface>>
+    }
+}
+
+IStore <|-- StoreFacade : implements
+StoreFacade ..> IServerApi : uses
+StoreFacade ..> StoreReactions : uses
+StoreFacade ..> StoreActions : uses
+StoreFacade ..> Model : uses
+
+
+note for serverApi "Класс, реализующий интерфейс IServerApi"
+note for coreApi "Класс, реализующий интерфейс ICoreApi"
+namespace api {
+    class serverApi {
+        +get()
+        +post()
+    }
+    class coreApi {
+    }
+}
+
+IServerApi <|-- serverApi : implements
+ICoreApi <|-- coreApi : implements
+
+
+note for useStore "Хук для создания Store в React"
+class useStore {
+        +post()
+}
+
+useStore ..> serverApi : uses
+useStore ..> coreApi : uses
+useStore ..> StoreFacade : uses
+
+
+note for Presenter "Адаптер store к View. Подготовка данных для отображения"
+namespace presenter {
+    class Presenter {
+        <<IPresenter<TPropsView>>>
+        ~props: Object
+        ~serverApi: IServerApi
+        ~getPropsView() TPropsView
+    }
+}
+
+
+note for usePresenter "Хук для создания Presenter в React"
+class usePresenter {
+    ~presenter: Presenter
+}
+
+Presenter --> IStore : dependency
+Presenter --> View : dependency
+usePresenter ..> useStore : uses store
+usePresenter ..> Presenter : uses
+
+
+note for View "Логика отображения"
+namespace ui {
+    class View {
+        ~props: TPropsView
+        +render()
+    }
+    class components {
+        ~props: Object
+        +render()
+    }
+}
+View ..> components : uses
+
+
+note for Main "React-компонент. Точка входа. Создание объектов и внедрение зависимостей"
+class Main {
+    ~props: Object
+    ~serverApi: IServerApi
+}
+
+Main ..> usePresenter : uses
+Main ..> View : uses
+```
+
+### Структура файлов и директорий
+
+```shell
+Feature/
+│
+├── store/                    # Интерактор, координатор. Директория для сущности управления состоянием и use cases
+│   ├── @Model/               # Директория для моделей и бизнес-логики, содержащие данные и бизнес-правила
+│   │   ├── Model.ts          # Класс Model, реализующий интерфейс TInstanceModel
+│   │   ├── reactions.ts      # Реакции на изменения данных в модели
+│   │   └── stateMachine      # Конечный автомат для управления переходами состояний
+│   │
+│   ├── reactions/            # Директория для реакций
+│   │   └── defineReaction.ts # Пример реакции, которая будет запущена сразу же после создания экземпляра модели
+│   │
+│   ├── actions/              # Директория для действий
+│   │   └── resolveSome.ts    # Пример действия, которе будет доступно снаружи store (экпортировано из store)
+│   │
+│   ├── createStore.ts        # StoreFacade. Функция, создающая store: создает экземлпляр модели, запускает реакции, экспортирует действия и состояние экземпляра модели.
+│   └── types.ts              # Интерфейсы IServerApi и ICoreApi
+│
+├── useStore.ts               # Хук для создания Store в React
+│
+├── presenter/                # Адаптер store к View
+│   └──  Presenter.ts         # Подготовка данных для отображения.
+│
+├── usePresenter.ts           # Хук для создания Presenter в React
+│
+├── ui/                       # Директория для логики отображения
+│   ├── View.tsx              # Основной компонент View, принимающий Presenter
+│   │
+│   └── components/           # Дополнительные UI-компоненты
+│       └── SomeComponent.tsx # Пример компонента
+│
+├── api/                      # Сервисный слой
+│   ├── coreApi.ts            # Класс, реализующий интерфейс ICoreApi
+│   └── serverApi.ts          # Класс, реализующий интерфейс IServerApi
+│
+└── Main.tsx                  # Точка входа в приложение. Рендер View и передача в него Presenter
+```
+
+## Принципы
+
+### [[Принцип инкапсуляции состояний и переходов]]
+
+Состояния и методы для их изменения должны быть инкапсулированы внутри _`Store`_ или _`Model`_. Store должен управлять переходами состояний через свои _реакции_ (`reactions`) и _действия_ (`actions`), не экспортируя методы изменения состояний наружу.
+
+### [[Принцип использования машин состояний]]
+
+- Каждое состояние должно иметь четкую смысловую нагрузку и соответствовать этапу жизненного цикла объекта или процесса.
+- Переходы между состояниями должны быть прямолинейными и логически обоснованными, без необходимости искусственных промежуточных шагов.
+- Если промежуточные состояния необходимы, они должны быть явно описаны в контексте бизнес-логики и нести самостоятельную ценность.
+
+### [[Принцип использования toogle-методов]]
+
+Использование `toggle`-методов, таких как `toggleActive`, может показаться удобным, поскольку они позволяют переключать состояние объекта одним вызовом. Однако у такого подхода есть несколько недостатков, которые делают его менее предпочтительным по сравнению с использованием конкретных методов, таких как `activate` и `deactivate`.
+
+### [[Принцип локализации и минимализма фикстур]]
+
+Фикстуры в модульных тестах должны быть максимально локализованы и содержать только те данные, которые необходимы для конкретного теста. Избегайте использования общих фикстур, которые переиспользуются в разных тестах, так как это приводит к избыточности данных, усложнению поддержки и снижению читаемости тестов.
+
+### [[Принцип разделения ответственности для обработки ошибок]]
+
+В архитектуре приложения ошибки должны быть описаны на уровне модели (`Domain Layer`) в виде типов (например, `union type` или `enum`), без привязки к текстовым сообщениям или переводам. Все текстовые описания ошибок должны быть вынесены в слой представления (`View Layer`), где используется механизм сопоставления (например, словарь или `map`) для связи типа ошибки с соответствующим сообщением. Это обеспечивает разделение ответственности и упрощает поддержку локализации.
+
+## Антипаттерны
+
+### ❌ Нарушение слоев
+
+```ts
+// Плохо: Presenter зависит от UI
+class Presenter {
+  constructor(private view: View) {}
+}
+
+// Хорошо: Presenter не зависит от UI
+class Presenter {
+  constructor(private store: Store) {}
+}
+```
+
+### ❌ Смешивание ответственности
+
+```ts
+// Плохо: Store содержит UI-логику
+class Store {
+  formatDate(date: Date): string {
+    return date.toLocaleString();
+  }
+}
+
+// Хорошо: Store содержит только бизнес-логику
+class Store {
+  validateDate(date: Date): boolean {
+    return date > new Date();
+  }
+}
+```
+
+
+
